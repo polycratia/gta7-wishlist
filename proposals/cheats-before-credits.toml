@@ -1,0 +1,17 @@
+# proposals/cheats-before-credits.toml
+
+id = "cheats-before-credits"
+title = "Allow single-player cheats from the start of the game"
+category = "progression"
+status = "open"
+problem = "In GTA 6 cheats cannot be used when a new game begins. The Cheats entry appears in the Progress tab only after the final story mission is finished, and the individual cheats then unlock through in-game goals. Players who treat the open world as a sandbox have to complete the whole story before they can touch any of it."
+proposal = "Let single-player cheats be enabled from the first hour through a clearly marked mode. Turning that mode on would disable trophies and achievements for the save, so unlocked progression keeps its meaning for players who want it. Cheats attached to in-game goals could still be listed, with the goal shown next to each entry."
+tags = ["cheats", "single-player", "sandbox"]
+
+[[evidence]]
+url = "https://www.redbull.com/us-en/gta-6-cheat-codes"
+checked_on = "2026-11-22"
+
+[[evidence]]
+url = "https://www.pcguide.com/news/gta-6-cheat-codes-list-for-playstation-5-xbox-series-xs-and-how-to-unlock-them/"
+checked_on = "2026-11-22"

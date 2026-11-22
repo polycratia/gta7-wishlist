@@ -1,0 +1,13 @@
+# proposals/pc-at-launch.toml
+
+id = "pc-at-launch"
+title = "Announce the PC date together with the console date"
+category = "platforms"
+status = "open"
+problem = "GTA 6 launched on PlayStation 5 and Xbox Series X|S on 19 November 2026. No PC release date has been announced, and no window has been given either. PC players have nothing to plan around and cannot tell whether waiting means months or years."
+proposal = "Announce the PC date at the same time as the console date, even when PC ships later. A stated quarter or year is enough to set expectations, and it lets a player decide between buying on console at launch and waiting for the PC version."
+tags = ["pc", "release-date"]
+
+[[evidence]]
+url = "https://www.pcgamer.com/no-gta-6-pc-release-announced"
+checked_on = "2026-11-22"

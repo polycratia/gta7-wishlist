@@ -19,10 +19,24 @@ What exists today:
   directory (`load_all`).
 - `gta7_wishlist.validate` - `validate(proposals)` returns a list of readable
   problems and never raises on bad data.
+- `proposals/` - the first three wishes, each grounded in documented GTA 6
+  behaviour at launch.
 - `tests/` - run them with `python -m pytest` from the repository root.
 
-There is no command line interface and no `proposals/` directory yet. Voting,
-ranking and patch tracking are not built.
+There is no command line interface yet. Voting, ranking and patch tracking are
+not built.
+
+## Current proposals
+
+- `mission-replay` (missions) - ship mission replay and chapter select on day
+  one, instead of leaving players to keep manual saves before each mission.
+- `cheats-before-credits` (progression) - let single-player cheats be enabled
+  from the start in a clearly marked mode that disables trophies, instead of
+  unlocking them after the final story mission.
+- `pc-at-launch` (platforms) - announce the PC date together with the console
+  date, even if the PC version ships later.
+
+All three are `open`: nothing about them has changed since launch.
 
 ## Proposal format
 

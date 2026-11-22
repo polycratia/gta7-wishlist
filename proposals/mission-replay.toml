@@ -1,0 +1,13 @@
+# proposals/mission-replay.toml
+
+id = "mission-replay"
+title = "Ship mission replay and chapter select on day one"
+category = "missions"
+status = "open"
+problem = "GTA 6 shipped without a mission replay option and without a chapter select screen. A player who wants to revisit a story mission has to keep a manual save from before it, or start the story again from the beginning. Missions that ended badly or were rushed cannot be repeated for a better run."
+proposal = "Include mission replay and chapter select in the base game at launch. Any finished mission should be restartable from a menu without overwriting the main save, and the chapter list should stay visible so a player can return to a known point in the story."
+tags = ["missions", "replay", "chapter-select"]
+
+[[evidence]]
+url = "https://www.g2a.com/news/gta-6-news/gta-6-mission-and-chapter-list/"
+checked_on = "2026-11-22"
