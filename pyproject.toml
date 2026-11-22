@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gta7-wishlist"
+version = "0.1.0"
+description = "Community wishlist for the next Grand Theft Auto, grounded in evidence from GTA 6"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "polycratia", email = "hey@polycratia.com" }]
+keywords = [
+  "gta7",
+  "gta-7",
+  "gta-vii",
+  "gta6",
+  "gta-6",
+  "gta-vi",
+  "grand-theft-auto",
+  "wishlist",
+  "game-feedback",
+]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Games/Entertainment",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://polycratia.com"
+Repository = "https://github.com/polycratia/gta7-wishlist"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gta7_wishlist"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
