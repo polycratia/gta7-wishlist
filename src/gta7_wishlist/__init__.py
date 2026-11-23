@@ -8,6 +8,7 @@ from gta7_wishlist.model import (
     load_all,
     load_proposal,
 )
+from gta7_wishlist.similar import find_duplicates, similarity
 from gta7_wishlist.validate import validate
 
 __version__ = "0.1.0"
@@ -17,8 +18,10 @@ __all__ = [
     "STATUSES",
     "Evidence",
     "Proposal",
+    "find_duplicates",
     "load_all",
     "load_proposal",
+    "similarity",
     "validate",
     "__version__",
 ]

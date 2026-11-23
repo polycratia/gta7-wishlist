@@ -19,8 +19,10 @@ What exists today:
   directory (`load_all`).
 - `gta7_wishlist.validate` - `validate(proposals)` returns a list of readable
   problems and never raises on bad data.
-- `gta7_wishlist.cli` - the `gta7` command: `list`, `show`, `check` and
-  `categories`.
+- `gta7_wishlist.similar` - `similarity(a, b)` scores two wishes in 0..1 and
+  `find_duplicates(proposals)` returns the pairs that look like the same wish.
+- `gta7_wishlist.cli` - the `gta7` command: `list`, `show`, `check`, `similar`
+  and `categories`.
 - `proposals/` - the first three wishes, each grounded in documented GTA 6
   behaviour at launch.
 - `tests/` - run them with `python -m pytest` from the repository root.
@@ -61,6 +63,12 @@ Evidence
 $ gta7 check
 3 proposals checked, no problems
 
+$ gta7 similar mission-replay
+mission-replay  Ship mission replay and chapter select on day one
+
+0.02  cheats-before-credits  Allow single-player cheats from the start of the game
+0.01  pc-at-launch           Announce the PC date together with the console date
+
 $ gta7 categories
 missions       1
 world          0
@@ -77,6 +85,30 @@ Exit codes: `0` when everything is fine, `1` when `gta7 check` found at least
 one problem (one line per problem, as `path: message`), and `2` for a bad
 argument, a missing directory or an unknown proposal id. An unknown id prints
 the closest ids it knows.
+
+## Duplicates
+
+Two people filing the same wish split the votes, so `gta7 check` compares every
+pair of proposals. The score comes from two-word shingles of the normalised
+title, problem and proposal text (lowercase, punctuation stripped, common
+English words dropped, a crude suffix stemmer) compared with Jaccard, with the
+title counted double. A pair at or above `0.45` is printed as a warning:
+
+```console
+$ gta7 check
+warning: mission-replay and replay-finished-missions look like the same wish (similarity 0.54); keep one, or declare not_duplicate_of on both sides
+4 proposals checked, no format problems, 1 possible duplicate pair
+
+$ gta7 check --strict
+...
+$ echo $?
+1
+```
+
+A warning never changes the exit code on its own; `--strict` turns duplicates
+into a failure. Two wishes that read alike but are genuinely different declare
+each other with `not_duplicate_of`, and that declaration has to exist on both
+sides or `gta7 check` reports it as a problem.
 
 ## Current proposals
 
@@ -120,6 +152,10 @@ status = "open"
 # Optional free-form labels.
 tags = ["interiors", "streaming"]
 
+# Optional. Ids of wishes that score as duplicates but are different wishes.
+# The other file has to list this id back, or gta7 check reports it.
+not_duplicate_of = ["interiors-load-faster"]
+
 # At least one evidence item. The url must be public and https, and
 # checked_on is the day you last looked at it (YYYY-MM-DD).
 [[evidence]]
@@ -132,6 +168,8 @@ checked_on = "2026-11-20"
 - One wish per file. Split anything that needs the word "and" twice.
 - Evidence is required. A wish must point at something public that shows how
   GTA 6 behaves today; without it the proposal is refused.
+- No duplicates. Run `gta7 similar` against the closest existing wish before
+  adding a file, and edit that wish instead of filing a second one.
 - No leaks and no datamined content. Public, official or clearly published
   sources only.
 - No harassment of developers. Describe the behaviour, not the people.

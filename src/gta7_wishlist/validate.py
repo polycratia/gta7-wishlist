@@ -22,8 +22,9 @@ def validate(proposals: Iterable[Proposal]) -> list[str]:
     """Return every problem found in the given proposals, as readable lines."""
     problems: list[str] = []
     locations_by_id: dict[str, list[str]] = {}
+    known = list(proposals)
 
-    for proposal in proposals:
+    for proposal in known:
         where = _where(proposal)
         problems.extend(_check_id(proposal, where))
         problems.extend(_check_text(proposal, where))
@@ -36,6 +37,8 @@ def validate(proposals: Iterable[Proposal]) -> list[str]:
             problems.append(
                 f"duplicate id {proposal_id!r}: " + ", ".join(sorted(locations))
             )
+
+    problems.extend(_check_not_duplicate_of(known))
 
     return problems
 
@@ -105,6 +108,38 @@ def _check_evidence(proposal: Proposal, where: str) -> list[str]:
                 f"{where}: evidence[{index}] checked_on must be a real date "
                 f"(YYYY-MM-DD), got {item.checked_on!r}"
             )
+    return problems
+
+
+def _check_not_duplicate_of(proposals: list[Proposal]) -> list[str]:
+    problems = []
+    by_id = {
+        proposal.id: proposal
+        for proposal in proposals
+        if isinstance(proposal.id, str) and proposal.id
+    }
+
+    for proposal in proposals:
+        where = _where(proposal)
+        for other_id in proposal.not_duplicate_of:
+            if not isinstance(other_id, str) or not other_id:
+                problems.append(
+                    f"{where}: not_duplicate_of must list proposal ids, got {other_id!r}"
+                )
+                continue
+            if other_id == proposal.id:
+                problems.append(
+                    f"{where}: not_duplicate_of must not list the proposal itself"
+                )
+                continue
+            other = by_id.get(other_id)
+            if other is None or proposal.id in other.not_duplicate_of:
+                continue
+            problems.append(
+                f"{where}: not_duplicate_of {other_id!r} is one-sided; add "
+                f"{proposal.id!r} to not_duplicate_of in {_where(other)}"
+            )
+
     return problems
 
 

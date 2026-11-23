@@ -38,6 +38,7 @@ class Proposal:
     status: str
     evidence: tuple[Evidence, ...] = ()
     tags: tuple[str, ...] = ()
+    not_duplicate_of: tuple[str, ...] = ()
     path: str | None = None
 
 
@@ -67,6 +68,11 @@ def _from_mapping(raw: dict[str, Any], path: Path) -> Proposal:
     raw_tags = raw.get("tags")
     tags = tuple(raw_tags) if isinstance(raw_tags, list) else ()
 
+    raw_not_duplicate_of = raw.get("not_duplicate_of")
+    not_duplicate_of = (
+        tuple(raw_not_duplicate_of) if isinstance(raw_not_duplicate_of, list) else ()
+    )
+
     return Proposal(
         id=raw.get("id", ""),
         title=raw.get("title", ""),
@@ -76,5 +82,6 @@ def _from_mapping(raw: dict[str, Any], path: Path) -> Proposal:
         status=raw.get("status", ""),
         evidence=tuple(evidence),
         tags=tags,
+        not_duplicate_of=not_duplicate_of,
         path=str(path),
     )
