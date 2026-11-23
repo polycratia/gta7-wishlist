@@ -32,6 +32,9 @@ dependencies = []
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
 
+[project.scripts]
+gta7 = "gta7_wishlist.cli:main"
+
 [project.urls]
 Homepage = "https://polycratia.com"
 Repository = "https://github.com/polycratia/gta7-wishlist"

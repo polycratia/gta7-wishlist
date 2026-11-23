@@ -19,12 +19,64 @@ What exists today:
   directory (`load_all`).
 - `gta7_wishlist.validate` - `validate(proposals)` returns a list of readable
   problems and never raises on bad data.
+- `gta7_wishlist.cli` - the `gta7` command: `list`, `show`, `check` and
+  `categories`.
 - `proposals/` - the first three wishes, each grounded in documented GTA 6
   behaviour at launch.
 - `tests/` - run them with `python -m pytest` from the repository root.
 
-There is no command line interface yet. Voting, ranking and patch tracking are
-not built.
+Voting, ranking and patch tracking are not built.
+
+## Command line
+
+Install the package (`pip install -e .`) and the `gta7` command is available.
+Every command reads `./proposals` by default; pass `--dir DIR` or set
+`GTA7_WISHLIST_DIR` to read another directory.
+
+```console
+$ gta7 list
+cheats-before-credits  progression  open  Allow single-player cheats from the start of the game
+mission-replay         missions     open  Ship mission replay and chapter select on day one
+pc-at-launch           platforms    open  Announce the PC date together with the console date
+
+$ gta7 list --category platforms --status open
+pc-at-launch  platforms  open  Announce the PC date together with the console date
+
+$ gta7 show pc-at-launch
+pc-at-launch
+Announce the PC date together with the console date
+
+category: platforms
+status:   open
+tags:     pc, release-date
+file:     proposals/pc-at-launch.toml
+
+Problem
+  GTA 6 launched on PlayStation 5 and Xbox Series X|S on 19 November 2026.
+  ...
+
+Evidence
+  https://www.pcgamer.com/no-gta-6-pc-release-announced  (checked 2026-11-22)
+
+$ gta7 check
+3 proposals checked, no problems
+
+$ gta7 categories
+missions       1
+world          0
+online         0
+controls       0
+performance    0
+platforms      1
+progression    1
+accessibility  0
+other          0
+```
+
+Exit codes: `0` when everything is fine, `1` when `gta7 check` found at least
+one problem (one line per problem, as `path: message`), and `2` for a bad
+argument, a missing directory or an unknown proposal id. An unknown id prints
+the closest ids it knows.
 
 ## Current proposals
 
