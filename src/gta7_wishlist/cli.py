@@ -1,4 +1,4 @@
-"""The gta7 command line: list, show, check and compare wishlist proposals."""
+"""The gta7 command line: read the wishlist and build your own."""
 
 from __future__ import annotations
 
@@ -9,9 +9,11 @@ import sys
 import textwrap
 import tomllib
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 from typing import IO, Sequence
 
+from gta7_wishlist import mine
 from gta7_wishlist.model import CATEGORIES, STATUSES, Proposal, load_proposal
 from gta7_wishlist.similar import (
     DEFAULT_THRESHOLD,
@@ -23,6 +25,8 @@ from gta7_wishlist.validate import validate
 
 DIR_ENV_VAR = "GTA7_WISHLIST_DIR"
 DEFAULT_DIR = "proposals"
+MY_FILE_ENV_VAR = "GTA7_MY_WISHLIST"
+DEFAULT_MY_FILE = "my-wishlist.toml"
 TEXT_WIDTH = 76
 
 
@@ -53,11 +57,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help=f"proposals directory (default: ${DIR_ENV_VAR} or ./{DEFAULT_DIR})",
     )
 
+    personal = argparse.ArgumentParser(add_help=False)
+    personal.add_argument(
+        "--file",
+        metavar="FILE",
+        default=argparse.SUPPRESS,
+        help=f"your wishlist file (default: ${MY_FILE_ENV_VAR} or ./{DEFAULT_MY_FILE})",
+    )
+
     parser = argparse.ArgumentParser(
         prog="gta7",
         parents=[common],
         description="Read the GTA 7 wishlist: an evidence-based list of what "
-        "players want after GTA 6.",
+        "players want after GTA 6, and build your own ranked list from it.",
     )
     commands = parser.add_subparsers(dest="command")
 
@@ -95,6 +107,35 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     categories_command.set_defaults(handler=_run_categories)
 
+    pick_command = commands.add_parser(
+        "pick", parents=[common, personal], help="add a proposal to your own list"
+    )
+    pick_command.add_argument("id", help="proposal id, as in the file name")
+    pick_command.add_argument("--note", metavar="TEXT", help="why this one matters")
+    pick_command.add_argument("--handle", metavar="NAME", help="the name on the card")
+    pick_command.set_defaults(handler=_run_pick)
+
+    drop_command = commands.add_parser(
+        "drop", parents=[common, personal], help="remove a proposal from your own list"
+    )
+    drop_command.add_argument("id", help="proposal id, as in the file name")
+    drop_command.set_defaults(handler=_run_drop)
+
+    move_command = commands.add_parser(
+        "move", parents=[common, personal], help="change the rank of one of your picks"
+    )
+    move_command.add_argument("id", help="proposal id, as in the file name")
+    move_command.add_argument("rank", type=int, help="the new rank, 1 is the top")
+    move_command.set_defaults(handler=_run_move)
+
+    mine_command = commands.add_parser(
+        "mine", parents=[common, personal], help="print your own ranked list"
+    )
+    mine_command.add_argument(
+        "--markdown", action="store_true", help="print the shareable card"
+    )
+    mine_command.set_defaults(handler=_run_mine)
+
     return parser
 
 
@@ -105,6 +146,15 @@ def _resolve_dir(value: str | None) -> Path:
     if from_env:
         return Path(from_env)
     return Path(DEFAULT_DIR)
+
+
+def _resolve_file(value: str | None) -> Path:
+    if value:
+        return Path(value)
+    from_env = os.environ.get(MY_FILE_ENV_VAR)
+    if from_env:
+        return Path(from_env)
+    return Path(DEFAULT_MY_FILE)
 
 
 def _load(directory: Path) -> tuple[list[Proposal], list[str]]:
@@ -148,9 +198,7 @@ def _run_list(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
     return 0
 
 
-def _unknown_value(
-    name: str, value: str, allowed: Sequence[str], out: IO[str]
-) -> int:
+def _unknown_value(name: str, value: str, allowed: Sequence[str], out: IO[str]) -> int:
     print(f"unknown {name} {value!r}", file=out)
     print(f"known {name} values: {', '.join(allowed)}", file=out)
     return 2
@@ -199,7 +247,10 @@ def _run_show(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
     if proposal.path:
         print(f"{'file:':<10}{proposal.path}", file=out)
 
-    for heading, text in (("Problem", proposal.problem), ("Proposal", proposal.proposal)):
+    for heading, text in (
+        ("Problem", proposal.problem),
+        ("Proposal", proposal.proposal),
+    ):
         print("", file=out)
         print(heading, file=out)
         print(
@@ -296,6 +347,104 @@ def _run_categories(args: argparse.Namespace, directory: Path, out: IO[str]) -> 
     width = max(len(name) for name in names)
     for name in names:
         print(f"{name:<{width}}  {counts.get(name, 0)}", file=out)
+    return 0
+
+
+def _run_pick(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
+    proposals, _ = _load(directory)
+    proposal = _resolve_proposal(proposals, args.id, out)
+    if proposal is None:
+        return 2
+
+    path = _resolve_file(getattr(args, "file", None))
+    wishlist = mine.load_wishlist(path)
+    if args.handle:
+        wishlist = replace(wishlist, handle=args.handle)
+
+    try:
+        wishlist = mine.pick(wishlist, str(proposal.id), proposals, note=args.note)
+    except mine.WishlistError as error:
+        print(str(error), file=out)
+        return 2
+
+    mine.save_wishlist(path, mine.stamp(wishlist))
+    print(
+        f"picked {proposal.id} at rank {len(wishlist.picks)} "
+        f"({len(wishlist.picks)} of {mine.MAX_PICKS})",
+        file=out,
+    )
+    return 0
+
+
+def _run_drop(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
+    path = _resolve_file(getattr(args, "file", None))
+
+    try:
+        wishlist = mine.drop(mine.load_wishlist(path), args.id)
+    except mine.WishlistError as error:
+        print(str(error), file=out)
+        return 2
+
+    mine.save_wishlist(path, mine.stamp(wishlist))
+    left = "pick" if len(wishlist.picks) == 1 else "picks"
+    print(f"dropped {args.id}, {len(wishlist.picks)} {left} left", file=out)
+    return 0
+
+
+def _run_move(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
+    path = _resolve_file(getattr(args, "file", None))
+
+    try:
+        wishlist = mine.move(mine.load_wishlist(path), args.id, args.rank)
+    except mine.WishlistError as error:
+        print(str(error), file=out)
+        return 2
+
+    mine.save_wishlist(path, mine.stamp(wishlist))
+    print(f"moved {args.id} to rank {args.rank}", file=out)
+    return 0
+
+
+def _run_mine(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
+    proposals, _ = _load(directory)
+    path = _resolve_file(getattr(args, "file", None))
+    wishlist = mine.load_wishlist(path)
+
+    if args.markdown:
+        print(mine.render_markdown(wishlist, proposals), end="", file=out)
+        return 0
+
+    picks = sorted(wishlist.picks, key=lambda item: item.rank)
+    if not picks:
+        print(f"{path}: no picks yet, add one with gta7 pick <id>", file=out)
+        return 0
+
+    by_id = {str(proposal.id): proposal for proposal in proposals}
+    who = f"@{wishlist.handle}" if wishlist.handle else "no handle"
+    print(
+        f"{who}  {len(picks)} of {mine.MAX_PICKS} picks  updated {wishlist.updated_on}",
+        file=out,
+    )
+    print("", file=out)
+
+    id_width = max(len(item.id) for item in picks)
+    category_width = max(len(mine.category_of(by_id, item.id)) for item in picks)
+    for item in picks:
+        proposal = by_id.get(item.id)
+        title = (
+            str(proposal.title)
+            if proposal is not None
+            else "(not in the proposals directory)"
+        )
+        print(
+            f"{item.rank:>2}  {item.id:<{id_width}}  "
+            f"{mine.category_of(by_id, item.id):<{category_width}}  {title}",
+            file=out,
+        )
+        if item.note:
+            for line in str(item.note).splitlines():
+                if line.strip():
+                    print(f"      {line.strip()}", file=out)
     return 0
 
 
