@@ -8,7 +8,8 @@ actually does today, so the list stays a record of real friction instead of a
 pile of fantasies.
 
 One wish lives in one TOML file. A small Python library loads those files and
-reports everything that does not meet the format.
+reports everything that does not meet the format. From that shared list you can
+build, rank and share a wishlist of your own.
 
 ## Status
 
@@ -21,13 +22,15 @@ What exists today:
   problems and never raises on bad data.
 - `gta7_wishlist.similar` - `similarity(a, b)` scores two wishes in 0..1 and
   `find_duplicates(proposals)` returns the pairs that look like the same wish.
-- `gta7_wishlist.cli` - the `gta7` command: `list`, `show`, `check`, `similar`
-  and `categories`.
+- `gta7_wishlist.mine` - personal wishlists: `pick`, `drop`, `move`,
+  `render_markdown`, and a reader and writer for the personal wishlist file.
+- `gta7_wishlist.cli` - the `gta7` command: `list`, `show`, `check`, `similar`,
+  `categories`, `pick`, `drop`, `move` and `mine`.
 - `proposals/` - the first three wishes, each grounded in documented GTA 6
   behaviour at launch.
 - `tests/` - run them with `python -m pytest` from the repository root.
 
-Voting, ranking and patch tracking are not built.
+Voting and patch tracking are not built.
 
 ## Command line
 
@@ -83,8 +86,8 @@ other          0
 
 Exit codes: `0` when everything is fine, `1` when `gta7 check` found at least
 one problem (one line per problem, as `path: message`), and `2` for a bad
-argument, a missing directory or an unknown proposal id. An unknown id prints
-the closest ids it knows.
+argument, a missing directory, an unknown proposal id or a refused change to
+your own list. An unknown id prints the closest ids it knows.
 
 ## Duplicates
 
@@ -110,17 +113,68 @@ into a failure. Two wishes that read alike but are genuinely different declare
 each other with `not_duplicate_of`, and that declaration has to exist on both
 sides or `gta7 check` reports it as a problem.
 
-## Current proposals
+## Your own wishlist
 
-- `mission-replay` (missions) - ship mission replay and chapter select on day
-  one, instead of leaving players to keep manual saves before each mission.
-- `cheats-before-credits` (progression) - let single-player cheats be enabled
-  from the start in a clearly marked mode that disables trophies, instead of
-  unlocking them after the final story mission.
-- `pc-at-launch` (platforms) - announce the PC date together with the console
-  date, even if the PC version ships later.
+The shared list says what exists. Your own list says what you would fix first.
+Pick proposals from the shared list, rank them, and print a card you can paste
+anywhere.
 
-All three are `open`: nothing about them has changed since launch.
+```console
+$ gta7 pick mission-replay --handle polycratia
+picked mission-replay at rank 1 (1 of 25)
+
+$ gta7 pick pc-at-launch --note "I only have a PC."
+picked pc-at-launch at rank 2 (2 of 25)
+
+$ gta7 move pc-at-launch 1
+moved pc-at-launch to rank 1
+
+$ gta7 mine
+@polycratia  2 of 25 picks  updated 2026-11-24
+
+ 1  pc-at-launch    platforms  Announce the PC date together with the console date
+      I only have a PC.
+ 2  mission-replay  missions   Ship mission replay and chapter select on day one
+
+$ gta7 drop mission-replay
+dropped mission-replay, 1 pick left
+
+$ gta7 mine --markdown
+# My GTA 7 wishlist
+
+By @polycratia, updated 2026-11-24.
+
+1. **Announce the PC date together with the console date** (platforms) - `pc-at-launch`
+   I only have a PC.
+
+1 pick: platforms 1.
+```
+
+Ranks are always `1..n` with no gaps: `drop` closes the gap it leaves and `move`
+renumbers everything around the proposal you moved. A list holds at most 25
+picks, so a ranking means something; the 26th is refused until you drop one.
+Picking an id twice, or an id that is not in the proposals directory, is
+refused too.
+
+Your list lives in `./my-wishlist.toml` unless you pass `--file FILE` or set
+`GTA7_MY_WISHLIST`. It is a file you can hand-edit:
+
+```toml
+handle = "polycratia"
+updated_on = "2026-11-24"
+
+[[picks]]
+id = "pc-at-launch"
+rank = 1
+note = "I only have a PC."
+
+[[picks]]
+id = "mission-replay"
+rank = 2
+```
+
+Only the order of the ranks is read, so you can renumber by hand with gaps or
+duplicates and the next command writes them back dense.
 
 ## Proposal format
 
@@ -162,6 +216,18 @@ not_duplicate_of = ["interiors-load-faster"]
 url = "https://www.rockstargames.com/gta-vi"
 checked_on = "2026-11-20"
 ```
+
+## Current proposals
+
+- `mission-replay` (missions) - ship mission replay and chapter select on day
+  one, instead of leaving players to keep manual saves before each mission.
+- `cheats-before-credits` (progression) - let single-player cheats be enabled
+  from the start in a clearly marked mode that disables trophies, instead of
+  unlocking them after the final story mission.
+- `pc-at-launch` (platforms) - announce the PC date together with the console
+  date, even if the PC version ships later.
+
+All three are `open`: nothing about them has changed since launch.
 
 ## Rules
 
