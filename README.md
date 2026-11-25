@@ -26,13 +26,17 @@ What exists today:
   `render_markdown`, and a reader and writer for the personal wishlist file.
 - `gta7_wishlist.tally` - `tally(wishlists, proposals)` scores the community
   ballots in `wishlists/` and returns the standings, the ballots it refused and
-  the picks it ignored. It is a library function; the `gta7` command does not
-  print the leaderboard yet.
+  the picks it ignored.
+- `gta7_wishlist.board` - `render_board(tally_result, proposals)` renders the
+  leaderboard as Markdown, and `tally_board(wishlists, proposals)` scores only
+  the ballots that count toward it.
 - `gta7_wishlist.cli` - the `gta7` command: `list`, `show`, `check`, `similar`,
-  `categories`, `pick`, `drop`, `move` and `mine`.
+  `categories`, `pick`, `drop`, `move`, `mine` and `board`.
 - `proposals/` - the first three wishes, each grounded in documented GTA 6
   behaviour at launch.
 - `wishlists/` - two example ballots.
+- `docs/leaderboard.md` - the generated leaderboard, the same text as the board
+  block below.
 - `tests/` - run them with `python -m pytest` from the repository root.
 
 Patch tracking is not built.
@@ -91,8 +95,9 @@ other          0
 
 Exit codes: `0` when everything is fine, `1` when `gta7 check` found at least
 one problem (one line per problem, as `path: message`), and `2` for a bad
-argument, a missing directory, an unknown proposal id or a refused change to
-your own list. An unknown id prints the closest ids it knows.
+argument, a missing directory, an unknown proposal id, a refused change to your
+own list, or a README without a board block. An unknown id prints the closest
+ids it knows.
 
 ## Duplicates
 
@@ -215,6 +220,33 @@ standings.
 `wishlists/example-jason.toml` and `wishlists/example-lucia.toml` are examples,
 marked as such in a `note`. To vote, open a pull request that adds one file
 named after your handle.
+
+## The leaderboard
+
+`gta7 board` prints the leaderboard built from those ballots, and `gta7 board
+--write` writes `docs/leaderboard.md` and replaces the generated block below,
+the one fenced by the `board:start` and `board:end` comments. It reads
+`./wishlists` unless you pass `--wishlists DIR` or set `GTA7_WISHLISTS_DIR`,
+and it writes relative to the directory it runs in, so run it from the
+repository root.
+
+Ballots whose handle starts with `example-` never count toward the board, so
+the two example files score only in the tests. The tests compare both committed
+copies against `render_board()` byte for byte: a ballot merged without a
+regenerated board fails.
+
+<!-- board:start -->
+## GTA 7 wishlist leaderboard
+
+Built from 0 ballots in `wishlists/`.
+Ballots whose handle starts with `example-` never count toward the board:
+the example files are in the repository to show the format, and they count
+only in the tests.
+
+No ballots yet.
+
+Regenerate this with `gta7 board --write` after a ballot is merged.
+<!-- board:end -->
 
 ## Proposal format
 

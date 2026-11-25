@@ -13,7 +13,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import IO, Sequence
 
-from gta7_wishlist import mine
+from gta7_wishlist import board, mine
 from gta7_wishlist.model import CATEGORIES, STATUSES, Proposal, load_proposal
 from gta7_wishlist.similar import (
     DEFAULT_THRESHOLD,
@@ -27,6 +27,8 @@ DIR_ENV_VAR = "GTA7_WISHLIST_DIR"
 DEFAULT_DIR = "proposals"
 MY_FILE_ENV_VAR = "GTA7_MY_WISHLIST"
 DEFAULT_MY_FILE = "my-wishlist.toml"
+WISHLISTS_ENV_VAR = "GTA7_WISHLISTS_DIR"
+DEFAULT_WISHLISTS = "wishlists"
 TEXT_WIDTH = 76
 
 
@@ -136,6 +138,24 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     mine_command.set_defaults(handler=_run_mine)
 
+    board_command = commands.add_parser(
+        "board", parents=[common], help="the leaderboard built from the ballots"
+    )
+    board_command.add_argument(
+        "--wishlists",
+        metavar="DIR",
+        default=argparse.SUPPRESS,
+        help=f"ballots directory (default: ${WISHLISTS_ENV_VAR} "
+        f"or ./{DEFAULT_WISHLISTS})",
+    )
+    board_command.add_argument(
+        "--write",
+        action="store_true",
+        help=f"write {board.LEADERBOARD_FILE} and the {board.README_FILE} board "
+        "block, both relative to the current directory",
+    )
+    board_command.set_defaults(handler=_run_board)
+
     return parser
 
 
@@ -155,6 +175,15 @@ def _resolve_file(value: str | None) -> Path:
     if from_env:
         return Path(from_env)
     return Path(DEFAULT_MY_FILE)
+
+
+def _resolve_wishlists(value: str | None) -> Path:
+    if value:
+        return Path(value)
+    from_env = os.environ.get(WISHLISTS_ENV_VAR)
+    if from_env:
+        return Path(from_env)
+    return Path(DEFAULT_WISHLISTS)
 
 
 def _load(directory: Path) -> tuple[list[Proposal], list[str]]:
@@ -445,6 +474,39 @@ def _run_mine(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
             for line in str(item.note).splitlines():
                 if line.strip():
                     print(f"      {line.strip()}", file=out)
+    return 0
+
+
+def _run_board(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
+    wishlists = _resolve_wishlists(getattr(args, "wishlists", None))
+    if not wishlists.is_dir():
+        print(f"{wishlists}: not a ballots directory", file=out)
+        return 2
+
+    proposals, _ = _load(directory)
+    result = board.tally_board(wishlists, proposals)
+    rendered = board.render_board(result, proposals)
+
+    if not args.write:
+        print(rendered, end="", file=out)
+        return 0
+
+    for ballot in result.rejected:
+        print(f"warning: {ballot.path} was not counted ({ballot.reason})", file=out)
+
+    doc = Path(board.LEADERBOARD_FILE)
+    doc.parent.mkdir(parents=True, exist_ok=True)
+    doc.write_text(rendered, encoding="utf-8")
+    print(f"wrote {doc}", file=out)
+
+    readme = Path(board.README_FILE)
+    text = readme.read_text(encoding="utf-8") if readme.is_file() else ""
+    if board.BOARD_START not in text or board.BOARD_END not in text:
+        print(f"{readme}: no {board.BOARD_START} block to replace", file=out)
+        return 2
+
+    readme.write_text(board.write_block(text, rendered), encoding="utf-8")
+    print(f"replaced the board block in {readme}", file=out)
     return 0
 
 
