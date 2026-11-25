@@ -1,0 +1,14 @@
+# wishlists/example-lucia.toml
+
+handle = "example-lucia"
+updated_on = "2026-11-25"
+note = "Example ballot kept in the repository to show the format. Not a real vote."
+
+[[picks]]
+id = "pc-at-launch"
+rank = 1
+note = "On console for now, and nothing to plan a PC build around."
+
+[[picks]]
+id = "mission-replay"
+rank = 2

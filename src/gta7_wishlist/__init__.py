@@ -18,17 +18,30 @@ from gta7_wishlist.model import (
     load_proposal,
 )
 from gta7_wishlist.similar import find_duplicates, similarity
+from gta7_wishlist.tally import (
+    BALLOT_LENGTH,
+    IgnoredPick,
+    RejectedBallot,
+    Report,
+    Standing,
+    tally,
+)
 from gta7_wishlist.validate import validate
 
 __version__ = "0.1.0"
 
 __all__ = [
+    "BALLOT_LENGTH",
     "CATEGORIES",
     "MAX_PICKS",
     "STATUSES",
     "Evidence",
+    "IgnoredPick",
     "Pick",
     "Proposal",
+    "RejectedBallot",
+    "Report",
+    "Standing",
     "Wishlist",
     "WishlistError",
     "find_duplicates",
@@ -38,6 +51,7 @@ __all__ = [
     "render_markdown",
     "save_wishlist",
     "similarity",
+    "tally",
     "validate",
     "__version__",
 ]

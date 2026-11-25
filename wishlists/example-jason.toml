@@ -1,0 +1,18 @@
+# wishlists/example-jason.toml
+
+handle = "example-jason"
+updated_on = "2026-11-25"
+note = "Example ballot kept in the repository to show the format. Not a real vote."
+
+[[picks]]
+id = "mission-replay"
+rank = 1
+note = "I replay the big missions more often than I finish the story."
+
+[[picks]]
+id = "cheats-before-credits"
+rank = 2
+
+[[picks]]
+id = "pc-at-launch"
+rank = 3

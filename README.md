@@ -9,7 +9,7 @@ pile of fantasies.
 
 One wish lives in one TOML file. A small Python library loads those files and
 reports everything that does not meet the format. From that shared list you can
-build, rank and share a wishlist of your own.
+build, rank and share a wishlist of your own, and send it in as a ballot.
 
 ## Status
 
@@ -24,13 +24,18 @@ What exists today:
   `find_duplicates(proposals)` returns the pairs that look like the same wish.
 - `gta7_wishlist.mine` - personal wishlists: `pick`, `drop`, `move`,
   `render_markdown`, and a reader and writer for the personal wishlist file.
+- `gta7_wishlist.tally` - `tally(wishlists, proposals)` scores the community
+  ballots in `wishlists/` and returns the standings, the ballots it refused and
+  the picks it ignored. It is a library function; the `gta7` command does not
+  print the leaderboard yet.
 - `gta7_wishlist.cli` - the `gta7` command: `list`, `show`, `check`, `similar`,
   `categories`, `pick`, `drop`, `move` and `mine`.
 - `proposals/` - the first three wishes, each grounded in documented GTA 6
   behaviour at launch.
+- `wishlists/` - two example ballots.
 - `tests/` - run them with `python -m pytest` from the repository root.
 
-Voting and patch tracking are not built.
+Patch tracking is not built.
 
 ## Command line
 
@@ -176,6 +181,41 @@ rank = 2
 Only the order of the ranks is read, so you can renumber by hand with gaps or
 duplicates and the next command writes them back dense.
 
+## How voting works
+
+Your own list is also your ballot. A ballot is a file in `wishlists/`, named
+after the handle that owns it - `wishlists/<handle>.toml` - in exactly the
+personal wishlist format above. One file per handle is the only identity rule
+here: nothing proves a handle belongs to a player, so this is a community poll
+of the people who sent a file, not a measurement of what all GTA 6 players
+want. Read it that way, and do not quote it as one.
+
+`tally(wishlists, proposals)` reads those files and scores them with a Borda
+count over a fixed ballot length of 25: rank 1 is worth 25 points, rank 2 is
+worth 24, rank 25 is worth 1. A short ballot is never padded, so every player
+spends the same weight on their top pick. Per proposal the tally reports
+`picks` (how many players chose it), `points`, `first_places` and a `rank`. The
+standings are ordered by points, then picks, then first places, then id, and
+proposals that tie on all three counts share a rank while the next rank skips:
+`1, 2, 2, 4`.
+
+A ballot is rejected whole, with a reason in the report instead of an
+exception, when:
+
+- the `handle` inside the file does not match the file name,
+- it picks an id that is not in the proposals directory,
+- it picks the same id twice,
+- its ranks are not exactly `1..n` - one gap or one repeat rejects the file,
+- it holds more than 25 picks, or none at all.
+
+Picks of proposals that are `declined` are ignored and listed separately; the
+rest of that ballot still counts, and declined proposals stay out of the
+standings.
+
+`wishlists/example-jason.toml` and `wishlists/example-lucia.toml` are examples,
+marked as such in a `note`. To vote, open a pull request that adds one file
+named after your handle.
+
 ## Proposal format
 
 A proposal is a single file at `proposals/<id>.toml`:
@@ -236,6 +276,7 @@ All three are `open`: nothing about them has changed since launch.
   GTA 6 behaves today; without it the proposal is refused.
 - No duplicates. Run `gta7 similar` against the closest existing wish before
   adding a file, and edit that wish instead of filing a second one.
+- One ballot per player. One file per handle, named after the handle.
 - No leaks and no datamined content. Public, official or clearly published
   sources only.
 - No harassment of developers. Describe the behaviour, not the people.
