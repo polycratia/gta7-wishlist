@@ -9,17 +9,18 @@ pile of fantasies.
 
 One wish lives in one TOML file. A small Python library loads those files and
 reports everything that does not meet the format. From that shared list you can
-build, rank and share a wishlist of your own, and send it in as a ballot.
+build, rank and share a wishlist of your own, and send it in as a ballot. Once
+GTA 6 changes, a title update file can move a wish off the list.
 
 ## Status
 
 What exists today:
 
-- `gta7_wishlist.model` - the `Proposal` and `Evidence` types, the category and
-  status lists, and loaders for a single file (`load_proposal`) or a whole
-  directory (`load_all`).
-- `gta7_wishlist.validate` - `validate(proposals)` returns a list of readable
-  problems and never raises on bad data.
+- `gta7_wishlist.model` - the `Proposal`, `Evidence` and `Update` types, the
+  category and status lists, and loaders for a single file (`load_proposal`,
+  `load_update`) or a whole directory (`load_all`, `load_updates`).
+- `gta7_wishlist.validate` - `validate(proposals, updates)` returns a list of
+  readable problems and never raises on bad data.
 - `gta7_wishlist.similar` - `similarity(a, b)` scores two wishes in 0..1 and
   `find_duplicates(proposals)` returns the pairs that look like the same wish.
 - `gta7_wishlist.mine` - personal wishlists: `pick`, `drop`, `move`,
@@ -30,22 +31,26 @@ What exists today:
 - `gta7_wishlist.board` - `render_board(tally_result, proposals)` renders the
   leaderboard as Markdown, and `tally_board(wishlists, proposals)` scores only
   the ballots that count toward it.
+- `gta7_wishlist.watch` - `status_report(proposals, updates)` groups every wish
+  into still open, addressed and declined, and `filter_since(report, date)`
+  keeps only the updates recorded since a day.
 - `gta7_wishlist.cli` - the `gta7` command: `list`, `show`, `check`, `similar`,
-  `categories`, `pick`, `drop`, `move`, `mine` and `board`.
+  `categories`, `pick`, `drop`, `move`, `mine`, `board` and `status`.
 - `proposals/` - the first three wishes, each grounded in documented GTA 6
   behaviour at launch.
 - `wishlists/` - two example ballots.
+- `updates/` - one file per official GTA 6 title update. No update is recorded
+  yet; `updates/README.md` explains the format.
 - `docs/leaderboard.md` - the generated leaderboard, the same text as the board
   block below.
 - `tests/` - run them with `python -m pytest` from the repository root.
-
-Patch tracking is not built.
 
 ## Command line
 
 Install the package (`pip install -e .`) and the `gta7` command is available.
 Every command reads `./proposals` by default; pass `--dir DIR` or set
-`GTA7_WISHLIST_DIR` to read another directory.
+`GTA7_WISHLIST_DIR` to read another directory. `gta7 check` and `gta7 status`
+also read `./updates`; pass `--updates DIR` or set `GTA7_UPDATES_DIR`.
 
 ```console
 $ gta7 list
@@ -96,8 +101,8 @@ other          0
 Exit codes: `0` when everything is fine, `1` when `gta7 check` found at least
 one problem (one line per problem, as `path: message`), and `2` for a bad
 argument, a missing directory, an unknown proposal id, a refused change to your
-own list, or a README without a board block. An unknown id prints the closest
-ids it knows.
+own list, a `--since` that is not a date, or a README without a board block. An
+unknown id prints the closest ids it knows.
 
 ## Duplicates
 
@@ -248,6 +253,51 @@ No ballots yet.
 Regenerate this with `gta7 board --write` after a ballot is merged.
 <!-- board:end -->
 
+## What a GTA 6 patch already addressed
+
+A wish is only worth ranking until the game changes. `updates/` records the
+official GTA 6 title updates, one file per update at `updates/<id>.toml`, and a
+wish that a patch answered points at one of them:
+
+```toml
+status = "addressed"
+addressed_by = "gta6-1-02"
+addressed_note = "Replay works from the pause menu; chapter select is still missing."
+```
+
+That update file is the evidence, so `gta7 check` refuses `addressed` without an
+`addressed_by` naming a file in `updates/`, refuses an update that is not out
+yet by its own `checked_on` dates, and refuses `addressed_by` on a wish that is
+still `open`. An update needs at least one public https source under the same
+date rules as a proposal. `updates/README.md` has the full format; the directory
+ships empty on purpose, because an invented patch note would quietly mark wishes
+as fixed.
+
+`gta7 status` groups every wish into still open, addressed and declined. The day
+count runs from the earliest evidence `checked_on`, the first day the behaviour
+was written down here; for an addressed wish it stops on the day the update was
+released, for the rest it runs to today.
+
+```console
+$ gta7 status
+3 wishes tracked: 3 still open, 0 addressed, 0 declined
+
+Still open
+  cheats-before-credits  progression  4 days since 2026-11-22
+  mission-replay         missions     4 days since 2026-11-22
+  pc-at-launch           platforms    4 days since 2026-11-22
+
+No GTA 6 title update is recorded yet.
+
+$ gta7 status --since 2026-12-01
+no GTA 6 title update recorded since 2026-12-01
+```
+
+`gta7 status --since YYYY-MM-DD` lists only the updates released on or after
+that day, each with the wishes it addressed, so a patch can be read as a diff
+against the list. A wish that names an update nobody recorded is kept apart as a
+warning instead of counting as addressed.
+
 ## Proposal format
 
 A proposal is a single file at `proposals/<id>.toml`:
@@ -282,6 +332,11 @@ tags = ["interiors", "streaming"]
 # The other file has to list this id back, or gta7 check reports it.
 not_duplicate_of = ["interiors-load-faster"]
 
+# Only with status = "addressed": the update in updates/ that fixed this,
+# and what it covered.
+# addressed_by = "gta6-1-02"
+# addressed_note = "Interiors load without a cut since this update."
+
 # At least one evidence item. The url must be public and https, and
 # checked_on is the day you last looked at it (YYYY-MM-DD).
 [[evidence]]
@@ -309,6 +364,8 @@ All three are `open`: nothing about them has changed since launch.
 - No duplicates. Run `gta7 similar` against the closest existing wish before
   adding a file, and edit that wish instead of filing a second one.
 - One ballot per player. One file per handle, named after the handle.
+- A wish is `addressed` only once a file in `updates/` records the title update
+  that fixed it. No update file, no addressed wish.
 - No leaks and no datamined content. Public, official or clearly published
   sources only.
 - No harassment of developers. Describe the behaviour, not the people.
