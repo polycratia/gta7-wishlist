@@ -13,8 +13,16 @@ from dataclasses import replace
 from pathlib import Path
 from typing import IO, Sequence
 
-from gta7_wishlist import board, mine
-from gta7_wishlist.model import CATEGORIES, STATUSES, Proposal, load_proposal
+from gta7_wishlist import board, mine, watch
+from gta7_wishlist.model import (
+    CATEGORIES,
+    STATUSES,
+    Proposal,
+    Update,
+    as_date,
+    load_proposal,
+    load_update,
+)
 from gta7_wishlist.similar import (
     DEFAULT_THRESHOLD,
     declared_different,
@@ -29,6 +37,8 @@ MY_FILE_ENV_VAR = "GTA7_MY_WISHLIST"
 DEFAULT_MY_FILE = "my-wishlist.toml"
 WISHLISTS_ENV_VAR = "GTA7_WISHLISTS_DIR"
 DEFAULT_WISHLISTS = "wishlists"
+UPDATES_ENV_VAR = "GTA7_UPDATES_DIR"
+DEFAULT_UPDATES = "updates"
 TEXT_WIDTH = 76
 
 
@@ -67,6 +77,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help=f"your wishlist file (default: ${MY_FILE_ENV_VAR} or ./{DEFAULT_MY_FILE})",
     )
 
+    patches = argparse.ArgumentParser(add_help=False)
+    patches.add_argument(
+        "--updates",
+        metavar="DIR",
+        default=argparse.SUPPRESS,
+        help=f"GTA 6 title updates directory (default: ${UPDATES_ENV_VAR} "
+        f"or ./{DEFAULT_UPDATES})",
+    )
+
     parser = argparse.ArgumentParser(
         prog="gta7",
         parents=[common],
@@ -89,7 +108,7 @@ def _build_parser() -> argparse.ArgumentParser:
     show_command.set_defaults(handler=_run_show)
 
     check_command = commands.add_parser(
-        "check", parents=[common], help="report every format problem"
+        "check", parents=[common, patches], help="report every format problem"
     )
     check_command.add_argument(
         "--strict",
@@ -156,6 +175,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     board_command.set_defaults(handler=_run_board)
 
+    status_command = commands.add_parser(
+        "status",
+        parents=[common, patches],
+        help="what a GTA 6 title update has already addressed",
+    )
+    status_command.add_argument(
+        "--since",
+        metavar="YYYY-MM-DD",
+        help="list only the changes recorded since that date",
+    )
+    status_command.set_defaults(handler=_run_status)
+
     return parser
 
 
@@ -186,6 +217,15 @@ def _resolve_wishlists(value: str | None) -> Path:
     return Path(DEFAULT_WISHLISTS)
 
 
+def _resolve_updates(value: str | None) -> Path:
+    if value:
+        return Path(value)
+    from_env = os.environ.get(UPDATES_ENV_VAR)
+    if from_env:
+        return Path(from_env)
+    return Path(DEFAULT_UPDATES)
+
+
 def _load(directory: Path) -> tuple[list[Proposal], list[str]]:
     proposals: list[Proposal] = []
     unreadable: list[str] = []
@@ -195,6 +235,19 @@ def _load(directory: Path) -> tuple[list[Proposal], list[str]]:
         except tomllib.TOMLDecodeError as error:
             unreadable.append(f"{path}: not readable as TOML ({error})")
     return proposals, unreadable
+
+
+def _load_updates(directory: Path) -> tuple[list[Update], list[str]]:
+    updates: list[Update] = []
+    unreadable: list[str] = []
+    if not directory.is_dir():
+        return updates, unreadable
+    for path in sorted(directory.glob("*.toml")):
+        try:
+            updates.append(load_update(path))
+        except tomllib.TOMLDecodeError as error:
+            unreadable.append(f"{path}: not readable as TOML ({error})")
+    return updates, unreadable
 
 
 def _run_list(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
@@ -273,6 +326,10 @@ def _run_show(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
             + ", ".join(str(other) for other in proposal.not_duplicate_of),
             file=out,
         )
+    if proposal.addressed_by:
+        print(f"{'fixed by:':<10}{proposal.addressed_by}", file=out)
+    if proposal.addressed_note:
+        print(f"{'note:':<10}{proposal.addressed_note}", file=out)
     if proposal.path:
         print(f"{'file:':<10}{proposal.path}", file=out)
 
@@ -303,7 +360,10 @@ def _run_show(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
 
 def _run_check(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
     proposals, unreadable = _load(directory)
-    problems = unreadable + validate(proposals)
+    updates, unreadable_updates = _load_updates(
+        _resolve_updates(getattr(args, "updates", None))
+    )
+    problems = unreadable + unreadable_updates + validate(proposals, updates)
 
     for problem in problems:
         print(problem, file=out)
@@ -320,16 +380,21 @@ def _run_check(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
     if problems:
         return 1
 
+    checked = f"{len(proposals)} proposals checked"
+    if updates:
+        label = "update" if len(updates) == 1 else "updates"
+        checked += f" against {len(updates)} {label}"
+
     if duplicates:
         pairs = "pair" if len(duplicates) == 1 else "pairs"
         print(
-            f"{len(proposals)} proposals checked, no format problems, "
+            f"{checked}, no format problems, "
             f"{len(duplicates)} possible duplicate {pairs}",
             file=out,
         )
         return 1 if args.strict else 0
 
-    print(f"{len(proposals)} proposals checked, no problems", file=out)
+    print(f"{checked}, no problems", file=out)
     return 0
 
 
@@ -508,6 +573,131 @@ def _run_board(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
     readme.write_text(board.write_block(text, rendered), encoding="utf-8")
     print(f"replaced the board block in {readme}", file=out)
     return 0
+
+
+def _run_status(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
+    updates_dir = _resolve_updates(getattr(args, "updates", None))
+    if not updates_dir.is_dir():
+        print(f"{updates_dir}: not an updates directory", file=out)
+        return 2
+
+    proposals, _ = _load(directory)
+    updates, unreadable = _load_updates(updates_dir)
+    for problem in unreadable:
+        print(problem, file=out)
+
+    report = watch.status_report(proposals, updates)
+
+    if args.since is None:
+        _print_status(report, out)
+        return 0
+
+    moment = as_date(args.since)
+    if moment is None:
+        print(f"--since takes a date as YYYY-MM-DD, got {args.since!r}", file=out)
+        return 2
+
+    _print_changes(watch.filter_since(report, moment), args.since, out)
+    return 0
+
+
+def _print_status(report: watch.StatusReport, out: IO[str]) -> None:
+    counted = (
+        len(report.still_open)
+        + len(report.addressed)
+        + len(report.declined)
+        + len(report.unmatched)
+    )
+    label = "wish" if counted == 1 else "wishes"
+    print(
+        f"{counted} {label} tracked: {len(report.still_open)} still open, "
+        f"{len(report.addressed)} addressed, {len(report.declined)} declined",
+        file=out,
+    )
+
+    for row in report.unmatched:
+        named = row.update_id or "no update"
+        print(
+            f"warning: {row.id} says it was addressed by {named}, which is not "
+            "in the updates directory",
+            file=out,
+        )
+
+    if report.addressed:
+        print("", file=out)
+        print("Addressed", file=out)
+        for row in report.addressed:
+            print(f"  {row.id}  {row.title}", file=out)
+            print(
+                f"      {row.version} ({row.update_id}), released "
+                f"{row.released_on}, open {_days(row.days_open)}",
+                file=out,
+            )
+            for line in row.note.splitlines():
+                if line.strip():
+                    print(f"      {line.strip()}", file=out)
+
+    for heading, rows in (("Still open", report.still_open), ("Declined", report.declined)):
+        if not rows:
+            continue
+        print("", file=out)
+        print(heading, file=out)
+        id_width = max(len(row.id) for row in rows)
+        category_width = max(len(row.category) for row in rows)
+        for row in rows:
+            print(
+                f"  {row.id:<{id_width}}  {row.category:<{category_width}}  "
+                f"{_waited(row)}",
+                file=out,
+            )
+
+    if not report.updates:
+        print("", file=out)
+        print("No GTA 6 title update is recorded yet.", file=out)
+
+
+def _print_changes(
+    report: watch.StatusReport, since_text: str, out: IO[str]
+) -> None:
+    if not report.updates:
+        print(f"no GTA 6 title update recorded since {since_text}", file=out)
+        return
+
+    label = "update" if len(report.updates) == 1 else "updates"
+    print(f"{len(report.updates)} {label} recorded since {since_text}", file=out)
+
+    for update in report.updates:
+        print("", file=out)
+        print(
+            f"{update.version}  released {watch.released_on(update)}  ({update.id})",
+            file=out,
+        )
+        print(
+            textwrap.fill(
+                str(update.summary),
+                width=TEXT_WIDTH,
+                initial_indent="  ",
+                subsequent_indent="  ",
+            ),
+            file=out,
+        )
+        for row in report.addressed:
+            if row.update_id != update.id:
+                continue
+            print(f"  addressed {row.id}  {row.title}", file=out)
+            for line in row.note.splitlines():
+                if line.strip():
+                    print(f"      {line.strip()}", file=out)
+
+
+def _waited(row: watch.Tracked) -> str:
+    if not row.since:
+        return "no dated evidence"
+    return f"{_days(row.days_open)} since {row.since}"
+
+
+def _days(count: int) -> str:
+    return f"{count} day" if count == 1 else f"{count} days"
 
 
 if __name__ == "__main__":

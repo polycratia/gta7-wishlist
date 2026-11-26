@@ -1,4 +1,4 @@
-"""Format checks for wishlist proposals."""
+"""Format checks for wishlist proposals and the GTA 6 updates they point at."""
 
 from __future__ import annotations
 
@@ -8,27 +8,41 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from gta7_wishlist.model import CATEGORIES, STATUSES, Proposal
+from gta7_wishlist.model import CATEGORIES, STATUSES, Evidence, Proposal, Update, as_date
 
 TITLE_MIN = 8
 TITLE_MAX = 90
 TEXT_MIN = 40
+SUMMARY_MIN = 20
+ADDRESSED = "addressed"
 
 _KEBAB_CASE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
-def validate(proposals: Iterable[Proposal]) -> list[str]:
-    """Return every problem found in the given proposals, as readable lines."""
+def validate(proposals: Iterable[Proposal], updates: Iterable[Update] = ()) -> list[str]:
+    """Return every problem found in the given proposals and updates."""
     problems: list[str] = []
     locations_by_id: dict[str, list[str]] = {}
     known = list(proposals)
+    known_updates = list(updates)
+
+    update_ids = {
+        update.id for update in known_updates if isinstance(update.id, str) and update.id
+    }
+    released = {update.id for update in known_updates if _is_released(update)}
 
     for proposal in known:
         where = _where(proposal)
-        problems.extend(_check_id(proposal, where))
+        problems.extend(_check_id(proposal.id, proposal.path, where))
         problems.extend(_check_text(proposal, where))
-        problems.extend(_check_evidence(proposal, where))
+        problems.extend(
+            _check_evidence(
+                proposal.evidence,
+                where,
+                "needs at least one evidence item showing how GTA 6 behaves today",
+            )
+        )
+        problems.extend(_check_addressed(proposal, where, update_ids, released))
         if isinstance(proposal.id, str) and proposal.id:
             locations_by_id.setdefault(proposal.id, []).append(where)
 
@@ -39,6 +53,7 @@ def validate(proposals: Iterable[Proposal]) -> list[str]:
             )
 
     problems.extend(_check_not_duplicate_of(known))
+    problems.extend(_check_updates(known_updates))
 
     return problems
 
@@ -51,14 +66,21 @@ def _where(proposal: Proposal) -> str:
     return "<unnamed proposal>"
 
 
-def _check_id(proposal: Proposal, where: str) -> list[str]:
-    proposal_id = proposal.id
-    if not isinstance(proposal_id, str) or not _KEBAB_CASE.match(proposal_id):
-        return [f"{where}: id must be kebab-case, got {proposal_id!r}"]
-    if isinstance(proposal.path, str) and proposal.path:
-        stem = Path(proposal.path).stem
-        if stem != proposal_id:
-            return [f"{where}: id {proposal_id!r} does not match file name {stem!r}"]
+def _where_update(update: Update) -> str:
+    if isinstance(update.path, str) and update.path:
+        return update.path
+    if isinstance(update.id, str) and update.id:
+        return update.id
+    return "<unnamed update>"
+
+
+def _check_id(value: Any, path: Any, where: str) -> list[str]:
+    if not isinstance(value, str) or not _KEBAB_CASE.match(value):
+        return [f"{where}: id must be kebab-case, got {value!r}"]
+    if isinstance(path, str) and path:
+        stem = Path(path).stem
+        if stem != value:
+            return [f"{where}: id {value!r} does not match file name {stem!r}"]
     return []
 
 
@@ -89,26 +111,126 @@ def _check_text(proposal: Proposal, where: str) -> list[str]:
     return problems
 
 
-def _check_evidence(proposal: Proposal, where: str) -> list[str]:
-    evidence = proposal.evidence
-    if not evidence:
-        return [
-            f"{where}: needs at least one evidence item showing how GTA 6 behaves today"
-        ]
+def _check_evidence(evidence: Iterable[Evidence], where: str, missing: str) -> list[str]:
+    items = list(evidence)
+    if not items:
+        return [f"{where}: {missing}"]
 
     problems = []
-    for index, item in enumerate(evidence):
+    for index, item in enumerate(items):
         url = item.url
         if not isinstance(url, str) or not url.startswith("https://"):
             problems.append(
                 f"{where}: evidence[{index}] url must start with https://, got {url!r}"
             )
-        if not _is_calendar_date(item.checked_on):
+        if as_date(item.checked_on) is None:
             problems.append(
                 f"{where}: evidence[{index}] checked_on must be a real date "
                 f"(YYYY-MM-DD), got {item.checked_on!r}"
             )
     return problems
+
+
+def _check_addressed(
+    proposal: Proposal, where: str, update_ids: set[str], released: set[str]
+) -> list[str]:
+    addressed_by = proposal.addressed_by
+    if addressed_by is not None and not isinstance(addressed_by, str):
+        return [f"{where}: addressed_by must be an update id, got {addressed_by!r}"]
+
+    problems = []
+    named = addressed_by or ""
+    if proposal.status == ADDRESSED:
+        if not named:
+            problems.append(
+                f"{where}: status 'addressed' needs addressed_by naming the update "
+                "in updates/ that fixed it"
+            )
+        elif named not in update_ids:
+            problems.append(
+                f"{where}: addressed_by {named!r} is not an update in the updates directory"
+            )
+        elif named not in released:
+            problems.append(
+                f"{where}: update {named!r} is not out yet by its own evidence; "
+                "a wish is addressed only after the update is released"
+            )
+    elif named:
+        problems.append(
+            f"{where}: addressed_by {named!r} needs status 'addressed', "
+            f"not {proposal.status!r}"
+        )
+
+    if proposal.addressed_note is not None and not isinstance(
+        proposal.addressed_note, str
+    ):
+        problems.append(f"{where}: addressed_note must be text")
+
+    return problems
+
+
+def _check_updates(updates: list[Update]) -> list[str]:
+    problems: list[str] = []
+    locations_by_id: dict[str, list[str]] = {}
+
+    for update in updates:
+        where = _where_update(update)
+        problems.extend(_check_id(update.id, update.path, where))
+
+        if not isinstance(update.version, str) or not update.version.strip():
+            problems.append(
+                f"{where}: version must name the title update, got {update.version!r}"
+            )
+
+        released = as_date(update.released_on)
+        if released is None:
+            problems.append(
+                f"{where}: released_on must be a real date (YYYY-MM-DD), "
+                f"got {update.released_on!r}"
+            )
+
+        if not isinstance(update.summary, str) or len(update.summary) < SUMMARY_MIN:
+            problems.append(f"{where}: summary must be at least {SUMMARY_MIN} characters")
+
+        problems.extend(
+            _check_evidence(
+                update.evidence,
+                where,
+                "needs at least one evidence item showing the update is out",
+            )
+        )
+
+        checked = _checked_dates(update)
+        if released is not None and checked and released > max(checked):
+            problems.append(
+                f"{where}: released_on {released.isoformat()} is after the last "
+                f"checked_on {max(checked).isoformat()}; an update is recorded once it is out"
+            )
+
+        if isinstance(update.id, str) and update.id:
+            locations_by_id.setdefault(update.id, []).append(where)
+
+    for update_id, locations in locations_by_id.items():
+        if len(locations) > 1:
+            problems.append(
+                f"duplicate update id {update_id!r}: " + ", ".join(sorted(locations))
+            )
+
+    return problems
+
+
+def _is_released(update: Update) -> bool:
+    released = as_date(update.released_on)
+    checked = _checked_dates(update)
+    return released is not None and bool(checked) and released <= max(checked)
+
+
+def _checked_dates(update: Update) -> list[date]:
+    return [
+        moment
+        for moment in (as_date(item.checked_on) for item in update.evidence)
+        if moment is not None
+    ]
 
 
 def _check_not_duplicate_of(proposals: list[Proposal]) -> list[str]:
@@ -141,15 +263,3 @@ def _check_not_duplicate_of(proposals: list[Proposal]) -> list[str]:
             )
 
     return problems
-
-
-def _is_calendar_date(value: Any) -> bool:
-    if isinstance(value, date):
-        return True
-    if not isinstance(value, str) or not _ISO_DATE.match(value):
-        return False
-    try:
-        date.fromisoformat(value)
-    except ValueError:
-        return False
-    return True

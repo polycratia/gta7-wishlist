@@ -15,8 +15,11 @@ from gta7_wishlist.model import (
     STATUSES,
     Evidence,
     Proposal,
+    Update,
     load_all,
     load_proposal,
+    load_update,
+    load_updates,
 )
 from gta7_wishlist.similar import find_duplicates, similarity
 from gta7_wishlist.tally import (
@@ -28,6 +31,7 @@ from gta7_wishlist.tally import (
     tally,
 )
 from gta7_wishlist.validate import validate
+from gta7_wishlist.watch import StatusReport, Tracked, filter_since, status_report
 
 __version__ = "0.1.0"
 
@@ -43,16 +47,23 @@ __all__ = [
     "RejectedBallot",
     "Report",
     "Standing",
+    "StatusReport",
+    "Tracked",
+    "Update",
     "Wishlist",
     "WishlistError",
+    "filter_since",
     "find_duplicates",
     "load_all",
     "load_proposal",
+    "load_update",
+    "load_updates",
     "load_wishlist",
     "render_board",
     "render_markdown",
     "save_wishlist",
     "similarity",
+    "status_report",
     "tally",
     "tally_board",
     "validate",
