@@ -1,6 +1,7 @@
 """Community wishlist for the next Grand Theft Auto, grounded in GTA 6 evidence."""
 
 from gta7_wishlist.board import render_board, tally_board
+from gta7_wishlist.intake import parse_issue, render_toml, slugify, split_issue
 from gta7_wishlist.mine import (
     MAX_PICKS,
     Pick,
@@ -59,10 +60,14 @@ __all__ = [
     "load_update",
     "load_updates",
     "load_wishlist",
+    "parse_issue",
     "render_board",
     "render_markdown",
+    "render_toml",
     "save_wishlist",
     "similarity",
+    "slugify",
+    "split_issue",
     "status_report",
     "tally",
     "tally_board",
