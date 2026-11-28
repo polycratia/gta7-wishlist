@@ -42,8 +42,40 @@ Notes on that body:
 
 ## Turn an issue into a proposal
 
-With the package installed (`pip install -e .`), `gta7_wishlist.intake` reads
-that body into a proposal draft:
+Save the issue with the title on the first line and the body under it, then
+read it into a draft (`pip install -e .` first):
+
+```console
+$ gta7 intake issue.md
+# proposals/keep-the-radio-playing-under-cutscenes.toml
+
+id = "keep-the-radio-playing-under-cutscenes"
+title = "Keep the radio playing under cutscenes"
+category = "world"
+status = "open"
+problem = "In GTA 6 the radio cuts out whenever a cutscene begins, and the song restarts from the top afterwards."
+proposal = "Keep the current station playing under cutscenes, so a song is never lost to a two-minute conversation."
+
+[[evidence]]
+url = "https://www.rockstargames.com/gta-vi"
+checked_on = "2026-11-20"
+```
+
+`gta7 intake -` reads the issue from standard input instead. The problems are
+printed under the draft and the command exits 1 when there is at least one: a
+missing section, a category outside the list, or evidence without a public
+`https` link. Nothing missing is filled in by guessing, so a gap stays visible
+in the draft:
+
+```console
+$ gta7 intake issue.md
+...
+the issue has no '### Evidence' section
+$ echo $?
+1
+```
+
+The same from Python:
 
 ```python
 from gta7_wishlist import parse_issue, render_toml
@@ -51,10 +83,6 @@ from gta7_wishlist import parse_issue, render_toml
 draft, problems = parse_issue(title, body)
 print(render_toml(draft))
 ```
-
-It reports a missing section, a category outside the list and evidence without
-a public https link, and it never fills a missing field in by guessing: the
-draft comes back with whatever was found, so the gaps stay visible.
 
 Everything in an issue is untrusted text. HTML comments and tags are removed,
 the text reaches the file only as escaped TOML strings, and a line that reads

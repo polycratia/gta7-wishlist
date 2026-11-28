@@ -13,7 +13,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import IO, Sequence
 
-from gta7_wishlist import board, mine, watch
+from gta7_wishlist import board, intake, mine, watch
 from gta7_wishlist.model import (
     CATEGORIES,
     STATUSES,
@@ -53,7 +53,7 @@ def main(argv: Sequence[str] | None = None, out: IO[str] | None = None) -> int:
         return 2
 
     directory = _resolve_dir(getattr(args, "dir", None))
-    if not directory.is_dir():
+    if getattr(args, "needs_dir", True) and not directory.is_dir():
         print(f"{directory}: not a proposals directory", file=stream)
         return 2
 
@@ -127,6 +127,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "categories", parents=[common], help="every category with its count"
     )
     categories_command.set_defaults(handler=_run_categories)
+
+    intake_command = commands.add_parser(
+        "intake", help="turn a suggestion filed as an issue into a proposal draft"
+    )
+    intake_command.add_argument(
+        "file", metavar="FILE", help="the issue as a file, or - for standard input"
+    )
+    intake_command.set_defaults(handler=_run_intake, needs_dir=False)
 
     pick_command = commands.add_parser(
         "pick", parents=[common, personal], help="add a proposal to your own list"
@@ -442,6 +450,30 @@ def _run_categories(args: argparse.Namespace, directory: Path, out: IO[str]) -> 
     for name in names:
         print(f"{name:<{width}}  {counts.get(name, 0)}", file=out)
     return 0
+
+
+def _run_intake(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:
+    if args.file == "-":
+        text = sys.stdin.read()
+    else:
+        path = Path(args.file)
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as error:
+            print(f"{path}: not readable ({error})", file=out)
+            return 2
+
+    title, body = intake.split_issue(text)
+    draft, problems = intake.parse_issue(title, body)
+
+    print(intake.render_toml(draft), end="", file=out)
+    if not problems:
+        return 0
+
+    print("", file=out)
+    for problem in problems:
+        print(problem, file=out)
+    return 1
 
 
 def _run_pick(args: argparse.Namespace, directory: Path, out: IO[str]) -> int:

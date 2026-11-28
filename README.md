@@ -34,8 +34,11 @@ What exists today:
 - `gta7_wishlist.watch` - `status_report(proposals, updates)` groups every wish
   into still open, addressed and declined, and `filter_since(report, date)`
   keeps only the updates recorded since a day.
+- `gta7_wishlist.intake` - `parse_issue(title, body)` reads a suggestion filed
+  as a GitHub issue into a proposal draft plus every problem found in it, and
+  `render_toml(draft)` writes that draft as a proposal file.
 - `gta7_wishlist.cli` - the `gta7` command: `list`, `show`, `check`, `similar`,
-  `categories`, `pick`, `drop`, `move`, `mine`, `board` and `status`.
+  `categories`, `intake`, `pick`, `drop`, `move`, `mine`, `board` and `status`.
 - `proposals/` - the first three wishes, each grounded in documented GTA 6
   behaviour at launch.
 - `wishlists/` - two example ballots.
@@ -43,6 +46,7 @@ What exists today:
   yet; `updates/README.md` explains the format.
 - `docs/leaderboard.md` - the generated leaderboard, the same text as the board
   block below.
+- `CONTRIBUTING.md` - how to file a wish as an issue without writing TOML.
 - `tests/` - run them with `python -m pytest` from the repository root.
 
 ## Command line
@@ -99,10 +103,11 @@ other          0
 ```
 
 Exit codes: `0` when everything is fine, `1` when `gta7 check` found at least
-one problem (one line per problem, as `path: message`), and `2` for a bad
-argument, a missing directory, an unknown proposal id, a refused change to your
-own list, a `--since` that is not a date, or a README without a board block. An
-unknown id prints the closest ids it knows.
+one problem (one line per problem, as `path: message`) or `gta7 intake` found a
+problem in an issue, and `2` for a bad argument, a missing directory or file, an
+unknown proposal id, a refused change to your own list, a `--since` that is not
+a date, or a README without a board block. An unknown id prints the closest ids
+it knows.
 
 ## Duplicates
 
@@ -297,6 +302,38 @@ no GTA 6 title update recorded since 2026-12-01
 that day, each with the wishes it addressed, so a patch can be read as a diff
 against the list. A wish that names an update nobody recorded is kept apart as a
 warning instead of counting as addressed.
+
+## From an issue to a proposal
+
+A wish can be suggested as a GitHub issue, with the four headings documented in
+`CONTRIBUTING.md`, so nobody has to write TOML to be heard. Save that issue -
+the title on the first line, the body under it - and read it into a draft:
+
+```console
+$ gta7 intake issue.md
+# proposals/keep-the-radio-playing-under-cutscenes.toml
+
+id = "keep-the-radio-playing-under-cutscenes"
+title = "Keep the radio playing under cutscenes"
+category = "world"
+status = "open"
+problem = "In GTA 6 the radio cuts out whenever a cutscene begins, and the song restarts from the top afterwards."
+proposal = "Keep the current station playing under cutscenes, so a song is never lost to a two-minute conversation."
+
+[[evidence]]
+url = "https://www.rockstargames.com/gta-vi"
+checked_on = "2026-11-20"
+```
+
+`gta7 intake -` reads the issue from standard input. The id comes from the
+title: ASCII kebab-case, 48 characters at most, cut on a word boundary. A
+missing section, a category outside the list and evidence without a public
+https link are printed under the draft and exit 1; nothing missing is guessed,
+so the gaps stay visible in the draft you save.
+
+Everything in an issue is untrusted text: HTML comments and tags are removed,
+every value reaches the file as an escaped TOML string, and a line that reads
+like an instruction is data like any other line.
 
 ## Proposal format
 

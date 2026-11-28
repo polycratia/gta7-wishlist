@@ -1,7 +1,10 @@
+import io
+import sys
 import tomllib
 from datetime import date
 
 from gta7_wishlist import parse_issue, render_toml, slugify, split_issue, validate
+from gta7_wishlist.cli import main
 
 TITLE = "Keep the radio playing under cutscenes"
 PROBLEM = (
@@ -32,6 +35,12 @@ world
 """
 
 MESSY = 'He said """stop""" and left a back\\slash in the report.'
+
+
+def run_intake(*argv):
+    out = io.StringIO()
+    code = main(["intake", *argv], out=out)
+    return code, out.getvalue()
 
 
 def test_a_well_formed_issue_becomes_a_valid_proposal():
@@ -149,3 +158,45 @@ def test_split_issue_leaves_the_body_alone_when_there_is_no_title():
 
     assert title == ""
     assert "### Evidence" in body
+
+
+def test_intake_prints_a_draft_that_reads_back_as_toml(tmp_path):
+    path = tmp_path / "issue.md"
+    path.write_text(f"# {TITLE}\n\n{BODY}", encoding="utf-8")
+
+    code, output = run_intake(str(path))
+    raw = tomllib.loads(output)
+
+    assert code == 0
+    assert raw["id"] == "keep-the-radio-playing-under-cutscenes"
+    assert raw["title"] == TITLE
+    assert raw["evidence"][0]["checked_on"] == "2026-11-20"
+
+
+def test_intake_prints_the_problems_under_the_draft_and_exits_1(tmp_path):
+    path = tmp_path / "issue.md"
+    path.write_text(
+        f"# {TITLE}\n\n" + BODY.split("### Evidence")[0], encoding="utf-8"
+    )
+
+    code, output = run_intake(str(path))
+
+    assert code == 1
+    assert "### Evidence" in output
+    assert 'title = "Keep the radio playing under cutscenes"' in output
+
+
+def test_intake_reads_the_issue_from_standard_input(monkeypatch):
+    monkeypatch.setattr(sys, "stdin", io.StringIO(f"# {TITLE}\n\n{BODY}"))
+
+    code, output = run_intake("-")
+
+    assert code == 0
+    assert TITLE in output
+
+
+def test_intake_on_a_missing_file_exits_2(tmp_path):
+    code, output = run_intake(str(tmp_path / "nowhere.md"))
+
+    assert code == 2
+    assert "nowhere.md" in output
